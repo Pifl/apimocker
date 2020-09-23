@@ -1,15 +1,16 @@
 package api
 
 import (
-	"github.com/gorilla/mux"
+	"log"
 	"net/http"
+	"github.com/gorilla/mux"
+	"apimocker/api/routers"
 )
 
-func Start(port string) {
-	r := mux.NewRouter()
+func Start(port string){
+	router := mux.NewRouter()
+	routers.AddAdminSubRouter(router)
+	routers.AddUtilSubRouter(router)
 
-	setupRoutes(r);
-
-	http.ListenAndServe(":5050", r)
+	log.Fatal(http.ListenAndServe(port, router))
 }
-

@@ -1,12 +1,7 @@
 package main
 
 import (
-    _ "fmt"
-	"api"
-	_ "log"
-	_ "host"
-	_ "mock"
-	_ "access"
+	"apimocker/api"
 )
 
 func main() {
