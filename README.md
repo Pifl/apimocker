@@ -20,10 +20,16 @@ A standalone application that can host simple tcp/http/https mocks. With an emph
 - Templating response objects
 
 
-## Go Modules
+## Go Packages
 
 - **main** Handles configuration and start-up
 - **api** The exposed api for interfacing with the application
 - **host** Underlying platform for hosting mocks e.g. a mock server
 - **mock** Mocks which can be deployed on a host
 - **access** Handles user accesses (not security just convinience)
+
+## Run Instructions
+
+`git clone https://github.com/Pifl/apimocker.git`
+`go build`
+`.\apimocker.exe`
