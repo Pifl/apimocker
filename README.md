@@ -31,5 +31,7 @@ A standalone application that can host simple tcp/http/https mocks. With an emph
 ## Run Instructions
 
 `git clone https://github.com/Pifl/apimocker.git`
+
 `go build`
+
 `.\apimocker.exe`
