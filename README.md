@@ -18,3 +18,12 @@ A standalone application that can host simple tcp/http/https mocks. With an emph
 - Persistance of mocks (local file store)
 - Scripting of data objects 
 - Templating response objects
+
+
+## Go Modules
+
+- **main** Handles configuration and start-up
+- **api** The exposed api for interfacing with the application
+- **host** Underlying platform for hosting mocks e.g. a mock server
+- **mock** Mocks which can be deployed on a host
+- **access** Handles user accesses (not security just convinience)
