@@ -15,14 +15,14 @@ import (
 func AddHostsSubRouter(pathPrefix string, r *httprouter.Router) {
 	path := "hosts"
 	r.GET(pathPrefix + path + "/:port", getHostHandler)
-	r.POST(pathPrefix + path, addMockHandler)
-	r.DELETE(pathPrefix + path, removeMockHandler)
+	r.POST(pathPrefix + path + "/:port", addMockHandler)
+	r.DELETE(pathPrefix + path + "/:port/mocks/:id", removeMockHandler)
 }
 
 func getHostHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	port, err := strconv.Atoi(ps.ByName("port"))
 	if err != nil {
-		w.WriteHeader(403)
+		w.WriteHeader(400)
 	}
 	host := host.Host(port)
 
@@ -33,7 +33,12 @@ func getHostHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 	
 	fmt.Fprintf(w, "%s\n", rsp)
 }
-func addMockHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func addMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+
+	port, err := strconv.Atoi(ps.ByName("port"))
+	if err != nil {
+		w.WriteHeader(400)
+	}
 
 	var mock mock.Mock
 	body, err := ioutil.ReadAll(r.Body)
@@ -42,7 +47,15 @@ func addMockHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
 		http.Error(w, "can't read body", http.StatusBadRequest)
 		return
 	}
-	json.Unmarshal(body, &mock)
+	err = json.Unmarshal(body, &mock)
+	if err != nil {
+		log.Printf("Error reading body: %v", err)
+		http.Error(w, "can't read body", http.StatusBadRequest)
+		return
+	}
+	mock.Port = port
+
+	fmt.Println(mock.Responses[0].Body)
 
 	host := host.RegisterMock(mock)
 	
