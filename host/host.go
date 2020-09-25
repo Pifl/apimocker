@@ -10,12 +10,13 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 )
-var Counter int = 0
-var hosts map[int]*Host = make(map[int]*Host)
 
-type Host struct {
+var hosts map[int]*host = make(map[int]*host)
+
+type host struct {
+	Port int
 	Mocks []mock.Mock
-	Server *http.Server
+	Server *http.Server `json:"-"`
 }
 
 type SyntaxError struct {
@@ -28,18 +29,18 @@ func (e *SyntaxError) Error() string {
 }
 
 
-func (host *Host) AddMock(mock mock.Mock) {
+func (host *host) AddMock(mock mock.Mock) {
 	host.Mocks = append(host.Mocks, mock)
 }
 
-func New(port int) *Host {
+func New(port int) *host {
 	mocks := make([]mock.Mock,0,5)
 	router := httprouter.New()
 
 	router.GET("/", func (w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		fmt.Fprint(w, "Welcome!\n")
 	})
-	
+
 	var srv *http.Server = &http.Server{
 		Addr: fmt.Sprintf(":%d", port),
 		Handler: router,
@@ -52,17 +53,25 @@ func New(port int) *Host {
         }
 	}()
 
-	return &Host {
+	return &host {
+		Port: port,
 		Mocks: mocks,
 		Server: srv,
 	}
 }
 
+func Host(port int) *host {
+	host, ok := hosts[port]
+	if !ok {
+		return nil
+	}
+	return host
+}
 
-func RemoveMock(mock mock.Mock) error {
+func RemoveMock(mock mock.Mock) (*host, error) {
 	host, ok := hosts[mock.Port]
 	if !ok {
-		return &SyntaxError{}
+		return nil, &SyntaxError{}
 	}
 	//Just remove the first one for now will reference stuff properly later
 	host.Mocks[0] = host.Mocks[len(host.Mocks) - 1]
@@ -76,14 +85,21 @@ func RemoveMock(mock mock.Mock) error {
 		}
 		delete(hosts, mock.Port)
 	}
-	return nil
+	return host, nil
 }
 
-func RegisterMock(mock mock.Mock) {
+func RegisterMock(mock mock.Mock) *host {
 	host, ok := hosts[mock.Port]
 	if !ok {
 		host = New(mock.Port)
 		hosts[mock.Port] = host
 	}
+	assignIdentifier(host, &mock)
 	host.AddMock(mock)
+	return host
+}
+
+func assignIdentifier(h *host, m *mock.Mock) {
+	id := m.Port << 8 + int(len(h.Mocks))
+	m.Id = id
 }
