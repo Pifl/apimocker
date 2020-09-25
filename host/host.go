@@ -68,22 +68,43 @@ func Host(port int) *host {
 	return host
 }
 
-func RemoveMock(mock mock.Mock) (*host, error) {
-	host, ok := hosts[mock.Port]
+func Mock(port, id int) (*mock.Mock, error){
+	host, ok := hosts[port]
 	if !ok {
 		return nil, &SyntaxError{}
 	}
-	//Just remove the first one for now will reference stuff properly later
-	host.Mocks[0] = host.Mocks[len(host.Mocks) - 1]
-	host.Mocks = host.Mocks[:len(host.Mocks) - 1]
 
+	for i, m := range host.Mocks {
+		if m.Id == id {
+			return &host.Mocks[i], nil
+		}
+	}
+
+	return nil, &SyntaxError{}
+}
+
+func RemoveMock(port, id int) (*host, error) {
+	host, ok := hosts[port]
+	if !ok {
+		return nil, &SyntaxError{}
+	}
+	
+	for i, m := range host.Mocks {
+		if m.Id == id {
+			host.Mocks[i] = host.Mocks[len(host.Mocks) - 1]
+			host.Mocks = host.Mocks[:len(host.Mocks) - 1]
+			break
+		}
+	}
+
+	//If no mocks left, shutdown host
 	if len(host.Mocks) == 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     	defer cancel()
 		if err := host.Server.Shutdown(ctx); err != nil {
 			panic(err) 
 		}
-		delete(hosts, mock.Port)
+		delete(hosts, port)
 	}
 	return host, nil
 }

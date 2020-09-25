@@ -15,6 +15,7 @@ import (
 func AddHostsSubRouter(pathPrefix string, r *httprouter.Router) {
 	path := "hosts"
 	r.GET(pathPrefix + path + "/:port", getHostHandler)
+	r.GET(pathPrefix + path + "/:port/mocks/:id", getMockHandler)
 	r.POST(pathPrefix + path + "/:port", addMockHandler)
 	r.DELETE(pathPrefix + path + "/:port/mocks/:id", removeMockHandler)
 }
@@ -32,6 +33,32 @@ func getHostHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 	}
 	
 	fmt.Fprintf(w, "%s\n", rsp)
+}
+
+func getMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	port, err := strconv.Atoi(ps.ByName("port"))
+	if err != nil {
+		w.WriteHeader(400)
+	}
+
+	id, err := strconv.Atoi(ps.ByName("id"))
+	if err != nil {
+		w.WriteHeader(400)
+	}
+
+	mock, err := host.Mock(port, id)
+	if err != nil {
+		w.WriteHeader(400)
+	}
+	
+	rsp, err := json.Marshal(mock)
+	if err != nil {
+		fmt.Println(err)
+	}
+	
+	fmt.Fprintf(w, "%s\n", rsp)
+
+
 }
 func addMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
@@ -68,17 +95,18 @@ func addMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 
 }
 
-func removeMockHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var mock mock.Mock
-	body, err := ioutil.ReadAll(r.Body)
+func removeMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	port, err := strconv.Atoi(ps.ByName("port"))
 	if err != nil {
-		log.Printf("Error reading body: %v", err)
-		http.Error(w, "can't read body", http.StatusBadRequest)
-		return
+		w.WriteHeader(400)
 	}
-	json.Unmarshal(body, &mock)
 
-	host, err := host.RemoveMock(mock)
+	id, err := strconv.Atoi(ps.ByName("id"))
+	if err != nil {
+		w.WriteHeader(400)
+	}
+
+	host, err := host.RemoveMock(port, id)
 	if err != nil {
 		fmt.Fprintln(w, err)
 	}
