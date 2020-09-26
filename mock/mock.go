@@ -3,7 +3,6 @@ package mock
 import (
 	"encoding/json"
 	"errors"
-
 	"strings"
 )
 

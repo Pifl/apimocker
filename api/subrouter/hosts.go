@@ -15,9 +15,9 @@ import (
 func AddHostsSubRouter(pathPrefix string, r *httprouter.Router) {
 	path := "hosts"
 	r.GET(pathPrefix + path + "/:port", getHostHandler)
-	r.GET(pathPrefix + path + "/:port/mocks/:id", getMockHandler)
+	r.GET(pathPrefix + path + "/:port/mock/:id", getMockHandler)
 	r.POST(pathPrefix + path + "/:port", addMockHandler)
-	r.DELETE(pathPrefix + path + "/:port/mocks/:id", removeMockHandler)
+	r.DELETE(pathPrefix + path + "/:port/mock/:id", removeMockHandler)
 }
 
 func getHostHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -50,7 +50,7 @@ func getMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 	if err != nil {
 		w.WriteHeader(400)
 	}
-	
+
 	rsp, err := json.Marshal(mock)
 	if err != nil {
 		fmt.Println(err)
@@ -91,6 +91,7 @@ func addMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		fmt.Println(err)
 	}
 	
+	w.WriteHeader(201)
 	fmt.Fprintf(w, "%s\n", rsp)
 
 }

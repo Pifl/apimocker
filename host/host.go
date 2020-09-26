@@ -15,6 +15,7 @@ var hosts map[int]*host = make(map[int]*host)
 
 type host struct {
 	Port int
+	Router *httprouter.Router
 	Mocks []mock.Mock
 	Server *http.Server `json:"-"`
 }
@@ -30,6 +31,12 @@ func (e *SyntaxError) Error() string {
 
 
 func (host *host) AddMock(mock mock.Mock) {
+	//GET HANDLER FROM MOCK ADD TO HOST ROUTER
+	/*
+		router.GET("/", func (w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+			fmt.Fprint(w, "Welcome!\n")
+		})
+	*/
 	host.Mocks = append(host.Mocks, mock)
 }
 
@@ -37,15 +44,10 @@ func New(port int) *host {
 	mocks := make([]mock.Mock,0,5)
 	router := httprouter.New()
 
-	router.GET("/", func (w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		fmt.Fprint(w, "Welcome!\n")
-	})
-
 	var srv *http.Server = &http.Server{
 		Addr: fmt.Sprintf(":%d", port),
 		Handler: router,
 	}
-
 	
 	go func() {
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
@@ -57,6 +59,7 @@ func New(port int) *host {
 		Port: port,
 		Mocks: mocks,
 		Server: srv,
+		Router: router,
 	}
 }
 
