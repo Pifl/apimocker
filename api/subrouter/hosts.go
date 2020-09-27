@@ -1,23 +1,25 @@
 package subrouter
 
 import (
-	"github.com/julienschmidt/httprouter"
-	"log"
-	"fmt"
-	"encoding/json"
-	"net/http"
-	"io/ioutil"
-	"strconv"
 	"apimocker/host"
 	"apimocker/mock"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"strconv"
+
+	"github.com/julienschmidt/httprouter"
 )
 
+// AddHostsSubRouter adds handlers to the sub paths for "hosts"
 func AddHostsSubRouter(pathPrefix string, r *httprouter.Router) {
 	path := "hosts"
-	r.GET(pathPrefix + path + "/:port", getHostHandler)
-	r.GET(pathPrefix + path + "/:port/mock/:id", getMockHandler)
-	r.POST(pathPrefix + path + "/:port", addMockHandler)
-	r.DELETE(pathPrefix + path + "/:port/mock/:id", removeMockHandler)
+	r.GET(pathPrefix+path+"/:port", getHostHandler)
+	r.GET(pathPrefix+path+"/:port/mock/:id", getMockHandler)
+	r.POST(pathPrefix+path+"/:port", addMockHandler)
+	r.DELETE(pathPrefix+path+"/:port/mock/:id", removeMockHandler)
 }
 
 func getHostHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -25,13 +27,13 @@ func getHostHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 	if err != nil {
 		w.WriteHeader(400)
 	}
-	host := host.Host(port)
+	host := host.ByPort(port)
 
 	rsp, err := json.Marshal(host)
 	if err != nil {
 		fmt.Println(err)
 	}
-	
+
 	fmt.Fprintf(w, "%s\n", rsp)
 }
 
@@ -55,9 +57,8 @@ func getMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 	if err != nil {
 		fmt.Println(err)
 	}
-	
-	fmt.Fprintf(w, "%s\n", rsp)
 
+	fmt.Fprintf(w, "%s\n", rsp)
 
 }
 func addMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -85,12 +86,12 @@ func addMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 	fmt.Println(mock.Responses[0].Body)
 
 	host := host.RegisterMock(mock)
-	
+
 	rsp, err := json.Marshal(host)
 	if err != nil {
 		fmt.Println(err)
 	}
-	
+
 	w.WriteHeader(201)
 	fmt.Fprintf(w, "%s\n", rsp)
 
@@ -118,8 +119,4 @@ func removeMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	}
 	fmt.Fprintf(w, "%s\n", rsp)
 
-}
-
-func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fmt.Fprint(w, "Welcome!\n")
 }

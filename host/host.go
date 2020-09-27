@@ -1,69 +1,72 @@
 package host
 
 import (
+	"apimocker/mock"
+	"context"
 	"fmt"
 	"log"
-	"time"
-	"context"
-	"apimocker/mock"
 	"net/http"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 )
 
-var hosts map[int]*host = make(map[int]*host)
+var hosts map[int]*Host = make(map[int]*Host)
 
-type host struct {
-	Port int
-	Router *httprouter.Router
-	Mocks []mock.Mock
+// Host holds a Server and the Mocks together
+type Host struct {
+	Port   int
+	Router *httprouter.Router `json:"-"`
+	Mocks  []mock.Mock
 	Server *http.Server `json:"-"`
 }
 
-type SyntaxError struct {
-    msg    string // description of error
-    Offset int64  // error occurred after reading Offset bytes
+type syntaxError struct {
+	msg    string // description of error
+	Offset int64  // error occurred after reading Offset bytes
 }
 
-func (e *SyntaxError) Error() string { 
-	return e.msg 
+func (e *syntaxError) Error() string {
+	return e.msg
 }
 
-
-func (host *host) AddMock(mock mock.Mock) {
+func (host *Host) addMock(mock mock.Mock) {
 	//GET HANDLER FROM MOCK ADD TO HOST ROUTER
 	/*
 		router.GET("/", func (w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 			fmt.Fprint(w, "Welcome!\n")
 		})
 	*/
+	mock.Handler(host.Router)
 	host.Mocks = append(host.Mocks, mock)
 }
 
-func New(port int) *host {
-	mocks := make([]mock.Mock,0,5)
+// New initalises a host including starting a server
+func New(port int) *Host {
+	mocks := make([]mock.Mock, 0, 5)
 	router := httprouter.New()
 
 	var srv *http.Server = &http.Server{
-		Addr: fmt.Sprintf(":%d", port),
+		Addr:    fmt.Sprintf(":%d", port),
 		Handler: router,
 	}
-	
+
 	go func() {
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-            log.Fatalf("ListenAndServe(): %v", err)
-        }
+			log.Fatalf("ListenAndServe(): %v", err)
+		}
 	}()
 
-	return &host {
-		Port: port,
-		Mocks: mocks,
+	return &Host{
+		Port:   port,
+		Mocks:  mocks,
 		Server: srv,
 		Router: router,
 	}
 }
 
-func Host(port int) *host {
+// ByPort gets the host on a port
+func ByPort(port int) *Host {
 	host, ok := hosts[port]
 	if !ok {
 		return nil
@@ -71,31 +74,33 @@ func Host(port int) *host {
 	return host
 }
 
-func Mock(port, id int) (*mock.Mock, error){
+// Mock gets a mock on a port with the id
+func Mock(port, id int) (*mock.Mock, error) {
 	host, ok := hosts[port]
 	if !ok {
-		return nil, &SyntaxError{}
+		return nil, &syntaxError{}
 	}
 
 	for i, m := range host.Mocks {
-		if m.Id == id {
+		if m.ID == id {
 			return &host.Mocks[i], nil
 		}
 	}
 
-	return nil, &SyntaxError{}
+	return nil, &syntaxError{}
 }
 
-func RemoveMock(port, id int) (*host, error) {
+// RemoveMock from a host using the id
+func RemoveMock(port, id int) (*Host, error) {
 	host, ok := hosts[port]
 	if !ok {
-		return nil, &SyntaxError{}
+		return nil, &syntaxError{}
 	}
-	
+
 	for i, m := range host.Mocks {
-		if m.Id == id {
-			host.Mocks[i] = host.Mocks[len(host.Mocks) - 1]
-			host.Mocks = host.Mocks[:len(host.Mocks) - 1]
+		if m.ID == id {
+			host.Mocks[i] = host.Mocks[len(host.Mocks)-1]
+			host.Mocks = host.Mocks[:len(host.Mocks)-1]
 			break
 		}
 	}
@@ -103,27 +108,28 @@ func RemoveMock(port, id int) (*host, error) {
 	//If no mocks left, shutdown host
 	if len(host.Mocks) == 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    	defer cancel()
+		defer cancel()
 		if err := host.Server.Shutdown(ctx); err != nil {
-			panic(err) 
+			panic(err)
 		}
 		delete(hosts, port)
 	}
 	return host, nil
 }
 
-func RegisterMock(mock mock.Mock) *host {
+// RegisterMock to a host, creates a new host if one not available
+func RegisterMock(mock mock.Mock) *Host {
 	host, ok := hosts[mock.Port]
 	if !ok {
 		host = New(mock.Port)
 		hosts[mock.Port] = host
 	}
 	assignIdentifier(host, &mock)
-	host.AddMock(mock)
+	host.addMock(mock)
 	return host
 }
 
-func assignIdentifier(h *host, m *mock.Mock) {
-	id := m.Port << 8 + int(len(h.Mocks))
-	m.Id = id
+func assignIdentifier(h *Host, m *mock.Mock) {
+	id := m.Port<<8 + int(len(h.Mocks))
+	m.ID = id
 }
