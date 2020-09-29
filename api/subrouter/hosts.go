@@ -68,19 +68,14 @@ func addMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		w.WriteHeader(400)
 	}
 
-	var mock mock.Mock
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("Error reading body: %v", err)
 		http.Error(w, "can't read body", http.StatusBadRequest)
 		return
 	}
-	err = json.Unmarshal(body, &mock)
-	if err != nil {
-		log.Printf("Error reading body: %v", err)
-		http.Error(w, "can't read body", http.StatusBadRequest)
-		return
-	}
+
+	mock, err := mock.New(body)
 	mock.Port = port
 
 	fmt.Println(mock.Responses[0].Body)

@@ -17,7 +17,7 @@ var hosts map[int]*Host = make(map[int]*Host)
 type Host struct {
 	Port   int
 	Router *httprouter.Router `json:"-"`
-	Mocks  []mock.Mock
+	Mocks  []*mock.Mock
 	Server *http.Server `json:"-"`
 }
 
@@ -30,7 +30,7 @@ func (e *syntaxError) Error() string {
 	return e.msg
 }
 
-func (host *Host) addMock(mock mock.Mock) {
+func (host *Host) addMock(mock *mock.Mock) {
 	//GET HANDLER FROM MOCK ADD TO HOST ROUTER
 	/*
 		router.GET("/", func (w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -43,7 +43,7 @@ func (host *Host) addMock(mock mock.Mock) {
 
 // New initalises a host including starting a server
 func New(port int) *Host {
-	mocks := make([]mock.Mock, 0, 5)
+	mocks := make([]*mock.Mock, 0, 5)
 	router := httprouter.New()
 
 	var srv *http.Server = &http.Server{
@@ -83,7 +83,7 @@ func Mock(port, id int) (*mock.Mock, error) {
 
 	for i, m := range host.Mocks {
 		if m.ID == id {
-			return &host.Mocks[i], nil
+			return host.Mocks[i], nil
 		}
 	}
 
@@ -118,13 +118,13 @@ func RemoveMock(port, id int) (*Host, error) {
 }
 
 // RegisterMock to a host, creates a new host if one not available
-func RegisterMock(mock mock.Mock) *Host {
+func RegisterMock(mock *mock.Mock) *Host {
 	host, ok := hosts[mock.Port]
 	if !ok {
 		host = New(mock.Port)
 		hosts[mock.Port] = host
 	}
-	assignIdentifier(host, &mock)
+	assignIdentifier(host, mock)
 	host.addMock(mock)
 	return host
 }
