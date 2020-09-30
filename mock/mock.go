@@ -15,8 +15,7 @@ import (
 
 // Mock is the custom type for a mock
 type Mock struct {
-	ID   string
-	Port int
+	ID string
 
 	Name     string
 	Path     string

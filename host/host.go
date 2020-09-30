@@ -17,17 +17,24 @@ var hosts map[int]*Host = make(map[int]*Host)
 type Host struct {
 	Port   int
 	Router *httprouter.Router `json:"-"`
-	Mocks  map[string]*mock.Mock
+	Mocks  []*mock.Mock
 	Server *http.Server `json:"-"`
 }
 
-type syntaxError struct {
-	msg    string // description of error
-	Offset int64  // error occurred after reading Offset bytes
+type hostError struct {
+	msg string
 }
 
-func (e *syntaxError) Error() string {
-	return e.msg
+func (err *hostError) Error() string {
+	return err.msg
+}
+
+type mergeError struct {
+	msg string
+}
+
+func (err *mergeError) Error() string {
+	return err.msg
 }
 
 // Add new mock to an existing host
@@ -35,21 +42,27 @@ func (e *syntaxError) Error() string {
 // to delete it you need to delete it twice (or force delete)
 // We check if mock with the same path already existings, if it does then we check
 // if the mock is identical / if so increment Instances, if not then try to "merge"
-func (host *Host) addMock(mock *mock.Mock) {
-	existingMock, ok := host.Mocks[mock.Path]
-	if !ok {
+func (host *Host) addMock(mock *mock.Mock) error {
+	existingMock, _ := host.MockByPath(mock.Path)
+	if existingMock == nil {
 		mock.Handler(host.Router)
-		host.Mocks[mock.Path] = mock
-
-		return
+		host.Mocks = append(host.Mocks, mock)
+		return nil
 	}
+	// ID is a hash of the contents of the mock, if ID is the same assume contents is identical
+	if existingMock.ID == mock.ID {
+		existingMock.Instances++
+		mock.Instances = existingMock.Instances
+		return nil
+	}
+	// Want to use the same path but aren't identical
 	// TODO Handle merging
-	existingMock.Instances++
+	return &mergeError{msg: "The new Mock wants to occupy the same resource but can't merge"}
 }
 
 // New initalises a host including starting a server
 func New(port int) *Host {
-	mocks := make(map[string]*mock.Mock)
+	mocks := make([]*mock.Mock, 0, 5)
 	router := httprouter.New()
 
 	var srv *http.Server = &http.Server{
@@ -77,32 +90,43 @@ func ByPort(port int) (*Host, bool) {
 	return host, ok
 }
 
-// Mock gets a mock on a host with the id
-func (host *Host) Mock(id string) (*mock.Mock, error) {
+// MockByPath get a mock on a host with a path
+func (host *Host) MockByPath(path string) (*mock.Mock, int) {
 	for i, m := range host.Mocks {
-		if m.ID == id {
-			return host.Mocks[i], nil
+		if m.Path == path {
+			return host.Mocks[i], i
 		}
 	}
-	return nil, &syntaxError{}
+	return nil, -1
+}
+
+// MockByID gets a mock on a host with the id
+func (host *Host) MockByID(id string) (*mock.Mock, int) {
+	for i, m := range host.Mocks {
+		if m.ID == id {
+			return host.Mocks[i], i
+		}
+	}
+	return nil, -1
 }
 
 // RemoveMock from a host using the id
 func RemoveMock(port int, id string) (*Host, error) {
 	host, ok := ByPort(port)
 	if !ok {
-		return nil, &syntaxError{}
+		return nil, &hostError{msg: "A host does not exist on this port"}
 	}
 
-	m, err := host.Mock(id)
-	if err != nil {
-		return nil, &syntaxError{}
+	m, i := host.MockByID(id)
+	if m == nil {
+		return nil, &hostError{msg: "A mock does not exist with this id"}
 	}
 
 	//Check if the instances will go down to zero, if so remove mock
 	instances := m.Instances - 1
 	if instances == 0 {
-		delete(host.Mocks, m.Path)
+		host.Mocks[i] = host.Mocks[len(host.Mocks)-1]
+		host.Mocks = host.Mocks[:len(host.Mocks)-1]
 	} else {
 		m.Instances = instances
 	}
@@ -120,12 +144,12 @@ func RemoveMock(port int, id string) (*Host, error) {
 }
 
 // RegisterMock to a host, creates a new host if one not available
-func RegisterMock(mock *mock.Mock) *Host {
-	host, ok := hosts[mock.Port]
+func RegisterMock(port int, mock *mock.Mock) (*Host, error) {
+	host, ok := hosts[port]
 	if !ok {
-		host = New(mock.Port)
-		hosts[mock.Port] = host
+		host = New(port)
+		hosts[port] = host
 	}
-	host.addMock(mock)
-	return host
+	err := host.addMock(mock)
+	return host, err
 }

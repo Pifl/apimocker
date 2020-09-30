@@ -54,8 +54,8 @@ func getMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		w.WriteHeader(400)
 	}
 
-	mock, err := host.Mock(id)
-	if err != nil {
+	mock, _ := host.MockByID(id)
+	if mock == nil {
 		w.WriteHeader(400)
 	}
 
@@ -88,13 +88,15 @@ func addMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		return
 	}
 
-	mock.Port = port
-
 	fmt.Println(mock.Responses[0].Body)
 
-	host := host.RegisterMock(mock)
+	_, err = host.RegisterMock(port, mock)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error: %v", err), http.StatusBadRequest)
+		return
+	}
 
-	rsp, err := json.Marshal(host)
+	rsp, err := json.Marshal(mock)
 	if err != nil {
 		fmt.Println(err)
 	}
