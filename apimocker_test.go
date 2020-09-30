@@ -29,8 +29,7 @@ func TestCreateHostAndMock(t *testing.T) {
 		return
 	}
 
-	mock.Port = 5500
-	host := host.RegisterMock(mock)
+	host, _ := host.RegisterMock(5500, &mock)
 	if len(host.Mocks) != 1 {
 		t.Errorf("Tried to add a single mock but length is %v", len(host.Mocks))
 	}
