@@ -1,6 +1,7 @@
 package mock
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,7 +15,7 @@ import (
 
 // Mock is the custom type for a mock
 type Mock struct {
-	ID   int
+	ID   string
 	Port int
 
 	Name     string
@@ -23,6 +24,8 @@ type Mock struct {
 
 	index     int
 	Responses []*response
+
+	Instances int
 }
 
 type response struct {
@@ -102,12 +105,34 @@ func (c code) MarshalJSON() ([]byte, error) {
 	return b, err
 }
 
+// New creates a new Mock from JSON bytes
 func New(b []byte) (*Mock, error) {
 	var mock Mock
 	err := json.Unmarshal(b, &mock)
 
+	//Assign ID
+	mock.assignIdentifier()
+
 	//Validate Logic / Set defaults
+	mock.Instances = 1
 	return &mock, err
+}
+
+func (m *Mock) assignIdentifier() {
+	var details []byte
+	details = append(details, []byte(m.Name)...)
+	details = append(details, []byte(m.Path)...)
+	details = append(details, []byte(m.Selector)...)
+	for _, rsp := range m.Responses {
+		details = append(details, []byte(rsp.Body)...)
+		details = append(details, byte(rsp.Code.Value))
+		for _, header := range rsp.Headers {
+			details = append(details, []byte(header.Name)...)
+			details = append(details, []byte(header.Value)...)
+		}
+	}
+	hmd5 := md5.Sum(details)
+	m.ID = fmt.Sprintf("%x", hmd5)
 }
 
 func (m *Mock) next() *response {

@@ -17,7 +17,7 @@ var hosts map[int]*Host = make(map[int]*Host)
 type Host struct {
 	Port   int
 	Router *httprouter.Router `json:"-"`
-	Mocks  []*mock.Mock
+	Mocks  map[string]*mock.Mock
 	Server *http.Server `json:"-"`
 }
 
@@ -30,20 +30,26 @@ func (e *syntaxError) Error() string {
 	return e.msg
 }
 
+// Add new mock to an existing host
+// For desired functionality that if you request two of the same mock
+// to delete it you need to delete it twice (or force delete)
+// We check if mock with the same path already existings, if it does then we check
+// if the mock is identical / if so increment Instances, if not then try to "merge"
 func (host *Host) addMock(mock *mock.Mock) {
-	//GET HANDLER FROM MOCK ADD TO HOST ROUTER
-	/*
-		router.GET("/", func (w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-			fmt.Fprint(w, "Welcome!\n")
-		})
-	*/
-	mock.Handler(host.Router)
-	host.Mocks = append(host.Mocks, mock)
+	existingMock, ok := host.Mocks[mock.Path]
+	if !ok {
+		mock.Handler(host.Router)
+		host.Mocks[mock.Path] = mock
+
+		return
+	}
+	// TODO Handle merging
+	existingMock.Instances++
 }
 
 // New initalises a host including starting a server
 func New(port int) *Host {
-	mocks := make([]*mock.Mock, 0, 5)
+	mocks := make(map[string]*mock.Mock)
 	router := httprouter.New()
 
 	var srv *http.Server = &http.Server{
@@ -66,43 +72,39 @@ func New(port int) *Host {
 }
 
 // ByPort gets the host on a port
-func ByPort(port int) *Host {
+func ByPort(port int) (*Host, bool) {
 	host, ok := hosts[port]
-	if !ok {
-		return nil
-	}
-	return host
+	return host, ok
 }
 
-// Mock gets a mock on a port with the id
-func Mock(port, id int) (*mock.Mock, error) {
-	host, ok := hosts[port]
-	if !ok {
-		return nil, &syntaxError{}
-	}
-
+// Mock gets a mock on a host with the id
+func (host *Host) Mock(id string) (*mock.Mock, error) {
 	for i, m := range host.Mocks {
 		if m.ID == id {
 			return host.Mocks[i], nil
 		}
 	}
-
 	return nil, &syntaxError{}
 }
 
 // RemoveMock from a host using the id
-func RemoveMock(port, id int) (*Host, error) {
-	host, ok := hosts[port]
+func RemoveMock(port int, id string) (*Host, error) {
+	host, ok := ByPort(port)
 	if !ok {
 		return nil, &syntaxError{}
 	}
 
-	for i, m := range host.Mocks {
-		if m.ID == id {
-			host.Mocks[i] = host.Mocks[len(host.Mocks)-1]
-			host.Mocks = host.Mocks[:len(host.Mocks)-1]
-			break
-		}
+	m, err := host.Mock(id)
+	if err != nil {
+		return nil, &syntaxError{}
+	}
+
+	//Check if the instances will go down to zero, if so remove mock
+	instances := m.Instances - 1
+	if instances == 0 {
+		delete(host.Mocks, m.Path)
+	} else {
+		m.Instances = instances
 	}
 
 	//If no mocks left, shutdown host
@@ -124,12 +126,6 @@ func RegisterMock(mock *mock.Mock) *Host {
 		host = New(mock.Port)
 		hosts[mock.Port] = host
 	}
-	assignIdentifier(host, mock)
 	host.addMock(mock)
 	return host
-}
-
-func assignIdentifier(h *Host, m *mock.Mock) {
-	id := m.Port<<8 + int(len(h.Mocks))
-	m.ID = id
 }
