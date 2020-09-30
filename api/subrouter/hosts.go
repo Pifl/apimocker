@@ -15,13 +15,14 @@ import (
 
 // AddHostsSubRouter adds handlers to the sub paths for "hosts"
 func AddHostsSubRouter(pathPrefix string, r *httprouter.Router) {
-	path := "hosts"
+	path := "host"
 	r.GET(pathPrefix+path+"/:port", getHostHandler)
 	r.GET(pathPrefix+path+"/:port/mock/:id", getMockHandler)
 	r.POST(pathPrefix+path+"/:port", addMockHandler)
 	r.DELETE(pathPrefix+path+"/:port/mock/:id", removeMockHandler)
 }
 
+// ../host/{port}
 func getHostHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	port, err := strconv.Atoi(ps.ByName("port"))
 	if err != nil {
@@ -41,6 +42,7 @@ func getHostHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 	fmt.Fprintf(w, "%s\n", rsp)
 }
 
+// ../host/{port}/mock/{mock.id}
 func getMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	port, err := strconv.Atoi(ps.ByName("port"))
 	if err != nil {
@@ -67,6 +69,8 @@ func getMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 	fmt.Fprintf(w, "%s\n", rsp)
 
 }
+
+// ../host/{port}
 func addMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	port, err := strconv.Atoi(ps.ByName("port"))
@@ -88,8 +92,6 @@ func addMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		return
 	}
 
-	fmt.Println(mock.Responses[0].Body)
-
 	_, err = host.RegisterMock(port, mock)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error: %v", err), http.StatusBadRequest)
@@ -106,15 +108,20 @@ func addMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 
 }
 
+// ../host/{port}/mock/{mock.id}?force={force}
+// If force then remove the mock from the host
+// else decrement instances and only remove mock if instances
+// is equal to zero
 func removeMockHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	port, err := strconv.Atoi(ps.ByName("port"))
 	if err != nil {
 		w.WriteHeader(400)
 	}
-
 	id := ps.ByName("id")
 
-	host, err := host.RemoveMock(port, id)
+	force := (r.URL.Query().Get("force") == "true")
+
+	host, err := host.RemoveMock(port, id, force)
 	if err != nil {
 		fmt.Fprintln(w, err)
 	}

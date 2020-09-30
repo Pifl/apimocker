@@ -111,7 +111,7 @@ func (host *Host) MockByID(id string) (*mock.Mock, int) {
 }
 
 // RemoveMock from a host using the id
-func RemoveMock(port int, id string) (*Host, error) {
+func RemoveMock(port int, id string, byforce bool) (*Host, error) {
 	host, ok := ByPort(port)
 	if !ok {
 		return nil, &hostError{msg: "A host does not exist on this port"}
@@ -124,7 +124,7 @@ func RemoveMock(port int, id string) (*Host, error) {
 
 	//Check if the instances will go down to zero, if so remove mock
 	instances := m.Instances - 1
-	if instances == 0 {
+	if instances == 0 || byforce {
 		host.Mocks[i] = host.Mocks[len(host.Mocks)-1]
 		host.Mocks = host.Mocks[:len(host.Mocks)-1]
 	} else {
