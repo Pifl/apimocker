@@ -28,11 +28,23 @@ type Mock struct {
 }
 
 type response struct {
-	Body    string
+	Body    body
 	Code    code
 	Headers []header
 	Delay   delay
 }
+
+type body struct {
+	encoding encoding
+	content  string
+}
+type encoding string
+
+const (
+	base64 encoding = "base64"
+	base32          = "base32"
+	raw             = "raw"
+)
 
 type delay struct {
 	Value    string
@@ -104,6 +116,50 @@ func (c code) MarshalJSON() ([]byte, error) {
 	return b, err
 }
 
+func (b *body) UnmarshalJSON(bytes []byte) error {
+	tokens := make([]string, 0, 4)
+	token := false
+	var start int
+	for i, b := range bytes {
+		// If current byte equals a qotation mark signifies start of token
+		if b == 34 {
+			if !token {
+				token = true
+				start = i + 1
+			} else {
+				token = false
+				tokens = append(tokens, string(bytes[start:i]))
+			}
+		}
+	}
+	//If the first token is encoding then the second must be the value, else last must be the value
+	var encod string
+	var content string
+	if strings.EqualFold(tokens[0], "encoding") {
+		encod = tokens[1]
+		content = tokens[3]
+	} else {
+		encod = tokens[3]
+		content = tokens[1]
+	}
+
+	// Check if encoding is one of the accepted values
+	encodT := encoding(encod)
+	switch encodT {
+	case base64, base32:
+	default:
+		encodT = raw
+	}
+
+	newbody := body{
+		encoding: encodT,
+		content:  content,
+	}
+	fmt.Printf("%v", newbody)
+	*b = newbody
+	return nil
+}
+
 // New creates a new Mock from JSON bytes
 func New(b []byte) (*Mock, error) {
 	var mock Mock
@@ -123,7 +179,7 @@ func (m *Mock) assignIdentifier() {
 	details = append(details, []byte(m.Path)...)
 	details = append(details, []byte(m.Selector)...)
 	for _, rsp := range m.Responses {
-		details = append(details, []byte(rsp.Body)...)
+		details = append(details, []byte(rsp.Body.content)...)
 		details = append(details, byte(rsp.Code.Value))
 		for _, header := range rsp.Headers {
 			details = append(details, []byte(header.Name)...)
@@ -138,7 +194,7 @@ func (m *Mock) next() *response {
 	if len(m.Responses) == 0 {
 		// Set 404
 		var rsp response = response{
-			Body: "Not Found",
+			Body: body{content: "Not Found"},
 		}
 		return &rsp
 	}
@@ -177,7 +233,7 @@ func (m *Mock) Handler(router *httprouter.Router) {
 		delay := desired - elapsed
 		time.Sleep(delay)
 
-		fmt.Fprint(w, rsp.Body+"\n")
+		fmt.Fprint(w, rsp.Body.content+"\n")
 
 	})
 }
