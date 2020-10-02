@@ -2,6 +2,8 @@ package mock
 
 import (
 	"crypto/md5"
+	"encoding/base32"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,16 +37,9 @@ type response struct {
 }
 
 type body struct {
-	encoding encoding
-	content  string
+	Encoding string
+	Content  []byte
 }
-type encoding string
-
-const (
-	base64 encoding = "base64"
-	base32          = "base32"
-	raw             = "raw"
-)
 
 type delay struct {
 	Value    string
@@ -132,31 +127,57 @@ func (b *body) UnmarshalJSON(bytes []byte) error {
 			}
 		}
 	}
-	//If the first token is encoding then the second must be the value, else last must be the value
+
 	var encod string
 	var content string
-	if strings.EqualFold(tokens[0], "encoding") {
+
+	if len(tokens) == 2 {
+		if tokens[0] == "content" {
+			encod = ""
+			content = tokens[1]
+		} else {
+			return errors.New("Incorrect JSON for field \"body\", if single field it should be content")
+		}
+	} else if strings.EqualFold(tokens[0], "encoding") && strings.EqualFold(tokens[2], "content") {
+		// If the first token is "encoding" then the third must be "content",
+		// therefore second and fourth are the encoding and content respectively
 		encod = tokens[1]
 		content = tokens[3]
-	} else {
+	} else if strings.EqualFold(tokens[0], "content") && strings.EqualFold(tokens[2], "encoding") {
+		// Else vice versa
 		encod = tokens[3]
 		content = tokens[1]
+	} else {
+		return errors.New("Incorrect JSON for field \"body\", requires content field with optional encoding field")
 	}
 
+	var data []byte
+	var err error
 	// Check if encoding is one of the accepted values
-	encodT := encoding(encod)
-	switch encodT {
-	case base64, base32:
+	switch encod {
+	case "base64":
+		data, err = base64.StdEncoding.DecodeString(content)
+		if err != nil {
+			fmt.Println("error:", err)
+			return err
+		}
+	case "base32":
+		data, err = base32.StdEncoding.DecodeString(content)
+		if err != nil {
+			fmt.Println("error:", err)
+			return err
+		}
 	default:
-		encodT = raw
+		encod = "raw"
+		data = []byte(content)
 	}
 
 	newbody := body{
-		encoding: encodT,
-		content:  content,
+		Encoding: encod,
+		Content:  data,
 	}
-	fmt.Printf("%v", newbody)
 	*b = newbody
+
 	return nil
 }
 
@@ -179,7 +200,7 @@ func (m *Mock) assignIdentifier() {
 	details = append(details, []byte(m.Path)...)
 	details = append(details, []byte(m.Selector)...)
 	for _, rsp := range m.Responses {
-		details = append(details, []byte(rsp.Body.content)...)
+		details = append(details, []byte(rsp.Body.Content)...)
 		details = append(details, byte(rsp.Code.Value))
 		for _, header := range rsp.Headers {
 			details = append(details, []byte(header.Name)...)
@@ -194,7 +215,7 @@ func (m *Mock) next() *response {
 	if len(m.Responses) == 0 {
 		// Set 404
 		var rsp response = response{
-			Body: body{content: "Not Found"},
+			Body: body{Content: []byte("Not Found")},
 		}
 		return &rsp
 	}
@@ -224,7 +245,6 @@ func (m *Mock) Handler(router *httprouter.Router) {
 		for _, h := range rsp.Headers {
 			w.Header().Set(h.Name, h.Value)
 		}
-		w.Header().Set("content-type", "application/json")
 		w.WriteHeader(rsp.Code.Value)
 
 		desired := rsp.Delay.duration
@@ -233,7 +253,7 @@ func (m *Mock) Handler(router *httprouter.Router) {
 		delay := desired - elapsed
 		time.Sleep(delay)
 
-		fmt.Fprint(w, rsp.Body.content+"\n")
+		fmt.Fprintf(w, "%s", rsp.Body.Content)
 
 	})
 }
