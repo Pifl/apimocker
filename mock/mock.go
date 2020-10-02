@@ -111,69 +111,40 @@ func (c code) MarshalJSON() ([]byte, error) {
 	return b, err
 }
 
+// UnmarshalJSON for the Response bodies first treats it as two string then based on the encoding
+// converts the contents to a []byte
 func (b *body) UnmarshalJSON(bytes []byte) error {
-	tokens := make([]string, 0, 4)
-	token := false
-	var start int
-	for i, b := range bytes {
-		// If current byte equals a qotation mark signifies start of token
-		if b == 34 {
-			if !token {
-				token = true
-				start = i + 1
-			} else {
-				token = false
-				tokens = append(tokens, string(bytes[start:i]))
-			}
-		}
-	}
 
-	var encod string
-	var content string
-
-	if len(tokens) == 2 {
-		if tokens[0] == "content" {
-			encod = ""
-			content = tokens[1]
-		} else {
-			return errors.New("Incorrect JSON for field \"body\", if single field it should be content")
-		}
-	} else if strings.EqualFold(tokens[0], "encoding") && strings.EqualFold(tokens[2], "content") {
-		// If the first token is "encoding" then the third must be "content",
-		// therefore second and fourth are the encoding and content respectively
-		encod = tokens[1]
-		content = tokens[3]
-	} else if strings.EqualFold(tokens[0], "content") && strings.EqualFold(tokens[2], "encoding") {
-		// Else vice versa
-		encod = tokens[3]
-		content = tokens[1]
-	} else {
-		return errors.New("Incorrect JSON for field \"body\", requires content field with optional encoding field")
+	type intermediate struct {
+		Encoding string
+		Content  string
 	}
+	var intermediary intermediate
+	json.Unmarshal(bytes, &intermediary)
 
 	var data []byte
 	var err error
 	// Check if encoding is one of the accepted values
-	switch encod {
+	switch intermediary.Encoding {
 	case "base64":
-		data, err = base64.StdEncoding.DecodeString(content)
+		data, err = base64.StdEncoding.DecodeString(intermediary.Content)
 		if err != nil {
 			fmt.Println("error:", err)
 			return err
 		}
 	case "base32":
-		data, err = base32.StdEncoding.DecodeString(content)
+		data, err = base32.StdEncoding.DecodeString(intermediary.Content)
 		if err != nil {
 			fmt.Println("error:", err)
 			return err
 		}
 	default:
-		encod = "raw"
-		data = []byte(content)
+		intermediary.Encoding = "raw"
+		data = []byte(intermediary.Content)
 	}
 
 	newbody := body{
-		Encoding: encod,
+		Encoding: intermediary.Encoding,
 		Content:  data,
 	}
 	*b = newbody
@@ -191,6 +162,7 @@ func New(b []byte) (*Mock, error) {
 
 	//Validate Logic / Set defaults
 	mock.Instances = 1
+
 	return &mock, err
 }
 
