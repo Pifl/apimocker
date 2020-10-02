@@ -1,0 +1,7 @@
+# This is a TOML document. Boom.
+
+admin = "TOML Example"
+
+[api]
+port = ":5050"
+

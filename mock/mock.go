@@ -237,7 +237,7 @@ func (m *Mock) next() *response {
 
 // Handler adds a mock specifc handler to the router of the host server
 func (m *Mock) Handler(router *httprouter.Router) {
-	router.GET(m.Path, func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	router.GET(m.Path, func(w http.ResponseWriter, r *http.Request, pm httprouter.Params) {
 		start := time.Now()
 
 		rsp := m.next()
@@ -247,6 +247,7 @@ func (m *Mock) Handler(router *httprouter.Router) {
 		}
 		w.WriteHeader(rsp.Code.Value)
 
+		fmt.Printf("%v", pm)
 		desired := rsp.Delay.duration
 		end := time.Now()
 		elapsed := end.Sub(start)

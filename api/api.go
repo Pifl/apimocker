@@ -2,6 +2,7 @@ package api
 
 import (
 	"apimocker/api/subrouter"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -16,6 +17,7 @@ func Start(port string) {
 
 	subrouter.AddHostsSubRouter(pathPrefix, r)
 
+	fmt.Printf("Starting API Mocker Server on port: %v", port)
 	log.Fatal(http.ListenAndServe(port, contentType(r)))
 }
 
