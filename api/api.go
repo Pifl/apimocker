@@ -17,7 +17,7 @@ func Start(port string) {
 
 	subrouter.AddHostsSubRouter(pathPrefix, r)
 
-	fmt.Printf("Starting API Mocker Server on port: %v", port)
+	fmt.Printf("Starting API Mocker Server on port: %v\n", port)
 	log.Fatal(http.ListenAndServe(port, contentType(r)))
 }
 

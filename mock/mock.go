@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/antonmedv/expr"
+	"github.com/antonmedv/expr/vm"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -23,8 +25,10 @@ type Mock struct {
 	Path     string
 	Selector selector
 
-	index     int
-	Responses []*response
+	index       int
+	environment map[string]interface{}
+	program     *vm.Program
+	Responses   []*response
 
 	Instances int
 }
@@ -163,6 +167,19 @@ func New(b []byte) (*Mock, error) {
 	//Validate Logic / Set defaults
 	mock.Instances = 1
 
+	mock.environment = map[string]interface{}{
+		"greet":    "Hello, %s!",
+		"names":    []string{"world", "you"},
+		"response": response{},
+		"sprintf":  fmt.Sprintf,
+	}
+
+	code := `sprintf(greet, response.Body.Content)`
+	mock.program, err = expr.Compile(code, expr.Env(mock.environment))
+	if err != nil {
+		panic(err)
+	}
+
 	return &mock, err
 }
 
@@ -219,14 +236,27 @@ func (m *Mock) Handler(router *httprouter.Router) {
 		}
 		w.WriteHeader(rsp.Code.Value)
 
-		fmt.Printf("%v", pm)
+		m.environment = map[string]interface{}{
+			"greet":    "Bye, %s!",
+			"names":    []string{"world", "you"},
+			"response": rsp,
+			"sprintf":  fmt.Sprintf,
+		}
+
+		output, err := expr.Run(m.program, m.environment)
+		if err != nil {
+			panic(err)
+		}
+
+		body := fmt.Sprint(output)
+
 		desired := rsp.Delay.duration
 		end := time.Now()
 		elapsed := end.Sub(start)
 		delay := desired - elapsed
 		time.Sleep(delay)
 
-		fmt.Fprintf(w, "%s", rsp.Body.Content)
+		fmt.Fprintf(w, "%s", body)
 
 	})
 }
