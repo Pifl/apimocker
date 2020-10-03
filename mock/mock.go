@@ -64,20 +64,31 @@ type selector string
 const (
 	sequence selector = "Sequence"
 	random            = "Random"
-	script            = "Script"
 )
+
+type Env struct {
+	Params httprouter.Params
+}
 
 func (s *selector) UnmarshalJSON(b []byte) error {
 	var tmp string
 	json.Unmarshal(b, &tmp)
-	tmp = strings.Title(strings.ToLower(tmp))
-	selectorT := selector(tmp)
+	selectorT := selector(strings.Title(strings.ToLower(tmp)))
 	switch selectorT {
-	case sequence, random, script:
+	case sequence, random:
 		*s = selectorT
 		return nil
+	default:
+		fmt.Println(tmp)
+
+		_, err := expr.Compile(tmp, expr.Env(Env{}))
+		if err != nil {
+			fmt.Println(err)
+			return errors.New("Invalid Selector script")
+		}
+		*s = selector(tmp)
+		return nil
 	}
-	return errors.New("Invalid Selector type")
 }
 
 func (e *delay) UnmarshalJSON(b []byte) error {
@@ -158,29 +169,25 @@ func (b *body) UnmarshalJSON(bytes []byte) error {
 
 // New creates a new Mock from JSON bytes
 func New(b []byte) (*Mock, error) {
-	var mock Mock
-	err := json.Unmarshal(b, &mock)
+	var m Mock
+	err := json.Unmarshal(b, &m)
 
 	//Assign ID
-	mock.assignIdentifier()
+	m.assignIdentifier()
 
 	//Validate Logic / Set defaults
-	mock.Instances = 1
+	m.Instances = 1
 
-	mock.environment = map[string]interface{}{
-		"greet":    "Hello, %s!",
-		"names":    []string{"world", "you"},
-		"response": response{},
-		"sprintf":  fmt.Sprintf,
+	if m.Selector != random && m.Selector != sequence {
+
+		m.program, err = expr.Compile(string(m.Selector), expr.Env(Env{}))
+		if err != nil {
+			fmt.Println(err)
+			return nil, errors.New("Invalid Selector script")
+		}
 	}
 
-	code := `sprintf(greet, response.Body.Content)`
-	mock.program, err = expr.Compile(code, expr.Env(mock.environment))
-	if err != nil {
-		panic(err)
-	}
-
-	return &mock, err
+	return &m, err
 }
 
 func (m *Mock) assignIdentifier() {
@@ -200,10 +207,11 @@ func (m *Mock) assignIdentifier() {
 	m.ID = fmt.Sprintf("%x", hmd5)
 }
 
-func (m *Mock) next() *response {
+func (m *Mock) next(pm httprouter.Params) *response {
 	if len(m.Responses) == 0 {
 		// Set 404
 		var rsp response = response{
+			Code: code{Value: 200},
 			Body: body{Content: []byte("Not Found")},
 		}
 		return &rsp
@@ -218,6 +226,14 @@ func (m *Mock) next() *response {
 	case random:
 		i = rand.Intn(len(m.Responses))
 	default:
+		env := Env{
+			Params: pm,
+		}
+		output, err := expr.Run(m.program, env)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("%v", output)
 		i = 0
 	}
 	m.index = i
@@ -229,26 +245,14 @@ func (m *Mock) Handler(router *httprouter.Router) {
 	router.GET(m.Path, func(w http.ResponseWriter, r *http.Request, pm httprouter.Params) {
 		start := time.Now()
 
-		rsp := m.next()
+		rsp := m.next(pm)
 
 		for _, h := range rsp.Headers {
 			w.Header().Set(h.Name, h.Value)
 		}
 		w.WriteHeader(rsp.Code.Value)
 
-		m.environment = map[string]interface{}{
-			"greet":    "Bye, %s!",
-			"names":    []string{"world", "you"},
-			"response": rsp,
-			"sprintf":  fmt.Sprintf,
-		}
-
-		output, err := expr.Run(m.program, m.environment)
-		if err != nil {
-			panic(err)
-		}
-
-		body := fmt.Sprint(output)
+		body := fmt.Sprint("ok")
 
 		desired := rsp.Delay.duration
 		end := time.Now()
