@@ -43,7 +43,7 @@ func (err *mergeError) Error() string {
 // We check if mock with the same path already existings, if it does then we check
 // if the mock is identical / if so increment Instances, if not then try to "merge"
 func (host *Host) addMock(mock *mock.Mock) error {
-	existingMock, _ := host.MockByPath(mock.Path)
+	existingMock, _ := host.MockByPath(mock.Path.Method, mock.Path.Resource)
 	if existingMock == nil {
 		mock.Handler(host.Router)
 		host.Mocks = append(host.Mocks, mock)
@@ -91,9 +91,9 @@ func ByPort(port int) (*Host, bool) {
 }
 
 // MockByPath get a mock on a host with a path
-func (host *Host) MockByPath(path string) (*mock.Mock, int) {
+func (host *Host) MockByPath(method, path string) (*mock.Mock, int) {
 	for i, m := range host.Mocks {
-		if m.Path == path {
+		if m.Path.Resource == path && m.Path.Method == method {
 			return host.Mocks[i], i
 		}
 	}
